@@ -1,5 +1,9 @@
 # ContentHoard 🎮🎵🎬
 
+<img width="224" height="224" alt="chicon" src="https://github.com/user-attachments/assets/68c9ecfb-8147-4927-a426-698891981efd" />
+
+
+
 > **Unified dashboard & launcher** for a suite of self-hosted media applications. Launch, theme, and manage profiles across MediaHoard, AudioHoard, PlayHoard, and future Hoard apps — all from a single hub.
 
 ---
@@ -142,6 +146,9 @@ These are **not** included in the repository but are required at runtime. They a
 ## ✨ Feature Highlights
 
 ### ContentHoard
+
+<img width="1110" height="878" alt="ch" src="https://github.com/user-attachments/assets/652da254-bea6-4e2f-8a3c-ea0d68b016d4" />
+
 - **App Launcher** — Launch MediaHoard, AudioHoard, PlayHoard from a unified dashboard
 - **Full Theme Editor** — 4-tab visual editor: Colors, Typography, Effects, Branding
 - **Per-App Branding** — Custom logos, header text, fonts/colors for each sibling app
@@ -149,6 +156,9 @@ These are **not** included in the repository but are required at runtime. They a
 - **Cross-App State Sync** — Shared JSON state file + real-time watchers
 
 ### MediaHoard
+
+<img width="1420" height="921" alt="mh" src="https://github.com/user-attachments/assets/5ad758a1-080c-4c1d-ae2a-98b0105e5581" />
+
 - **Stremio Addon Support** — Install addons via manifest URL for catalogs, metadata, streams
 - **Native mpv Player** — Full-screen transparent "Goblin Player" with hardware acceleration
 - **Personal Media Library** — Import local video files with thumbnail extraction
@@ -156,6 +166,9 @@ These are **not** included in the repository but are required at runtime. They a
 - **TMDB Metadata** — Automatic metadata enrichment for local media
 
 ### AudioHoard
+
+<img width="1492" height="786" alt="ah" src="https://github.com/user-attachments/assets/046049a4-e29f-4623-892a-318434d620d8" />
+
 - **YouTube Music Streaming** — Search and stream songs, albums, playlists, artists
 - **Dual-<audio> Engine** — Gapless playback with configurable crossfade (0-12s)
 - **LUFS Loudness Normalization** — AudioWorklet-based (ITU-R BS.1770 / EBU R128)
@@ -166,6 +179,9 @@ These are **not** included in the repository but are required at runtime. They a
 - **12 Languages** — Built-in internationalization
 
 ### PlayHoard
+
+<img width="1351" height="1018" alt="ph" src="https://github.com/user-attachments/assets/2284af0e-1c57-4565-b612-215ec0950c96" />
+
 - **Game Download Engine** — Multi-source: Torrent, Debrid services, File hosters, CDN
 - **Game Library Management** — Browse, search, collections, favorites
 - **Linux Gaming** — Proton, Wine, MangoHud, GameMode, UMU support
