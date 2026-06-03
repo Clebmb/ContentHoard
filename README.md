@@ -17,7 +17,7 @@
 | **AudioHoard** | `./AudioHoard` | Spotify-like music player (YouTube Music streaming) | Electron + Vanilla JS + Capacitor (Android) |
 | **PlayHoard** | `./PlayHoard` | Game launcher & download manager | Electron + React 18 + Redux + Rust native |Game launcher & download manager | Electron + React 18 + Redux + Rust native + |
 
-**PlayHoard** is a fork of https://github.com/vanhauser-thc/thc-hydra
+**PlayHoard** is a fork of https://github.com/hydralauncher/hydra
 
 **AudioHoard** is a fork of https://github.com/nyakuoff/Snowify
 
