@@ -1,0 +1,31 @@
+# ─── OS Files ───────────────────────────────────────────────────────────
+.DS_Store
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+*.swp
+*.swo
+*~
+
+# ─── Editor / IDE ───────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# ─── Logs ───────────────────────────────────────────────────────────────
+*.log
+
+# ─── Secrets / Environment ──────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ─── Local project notes ────────────────────────────────────────────────
+.claude/
+.planning/
+TO-DO.md
+Future-updates.md
+
+# ─── Dependencies (if any end up at root) ───────────────────────────────
+node_modules/

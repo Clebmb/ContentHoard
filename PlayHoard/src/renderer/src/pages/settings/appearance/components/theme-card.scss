@@ -1,0 +1,129 @@
+@use "../../../../scss/globals.scss";
+
+.theme-card {
+  width: 100%;
+  min-height: 180px;
+  display: flex;
+  flex-direction: column;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 24px;
+  gap: 8px;
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+  padding: 22px;
+  position: relative;
+  overflow: hidden;
+  backdrop-filter: blur(24px);
+
+  &:hover {
+    border-color: rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.08);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.36);
+    transform: translateY(-2px);
+  }
+
+  &--active {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.36);
+
+    &::after {
+      content: "Active";
+      position: absolute;
+      top: 18px;
+      right: 18px;
+      padding: 7px 11px;
+      border-radius: 999px;
+      background: #fff;
+      color: globals.$dark-background-color;
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+  }
+
+  &__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-direction: row;
+    gap: 16px;
+
+    &__title {
+      max-width: calc(100% - 70px);
+      font-size: 22px;
+      font-weight: 800;
+      color: #fff;
+      text-transform: capitalize;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    &__colors {
+      display: flex;
+      flex-direction: row;
+      gap: 8px;
+
+      &__color {
+        width: 16px;
+        height: 16px;
+        border-radius: 4px;
+        border: 1px solid globals.$border-color;
+      }
+    }
+  }
+
+  &__author {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.54);
+    font-weight: 400;
+
+    &__name {
+      font-weight: 600;
+      color: rgba(255, 255, 255, 0.82);
+      margin-left: 4px;
+
+      &:hover {
+        color: #fff;
+        cursor: pointer;
+        text-decoration: underline;
+        text-underline-offset: 2px;
+      }
+    }
+  }
+
+  &__actions {
+    display: flex;
+    flex-direction: row;
+    position: absolute;
+    bottom: 16px;
+    left: 22px;
+    right: 22px;
+    gap: 8px;
+    justify-content: space-between;
+
+    &__left {
+      display: flex;
+      flex-direction: row;
+      gap: 8px;
+    }
+
+    &__right {
+      display: flex;
+      flex-direction: row;
+      gap: 8px;
+
+      &--external {
+        display: none;
+      }
+
+      Button {
+        padding: 8px 11px;
+      }
+    }
+  }
+}

@@ -1,0 +1,49 @@
+@use "../../../../scss/globals.scss";
+
+.settings-appearance {
+  &__actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 8px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(18px);
+
+    &-left {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    &-right {
+      display: flex;
+      gap: 8px;
+    }
+  }
+
+  &__button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+}
+
+@media (max-width: 720px) {
+  .settings-appearance__actions {
+    align-items: stretch;
+    border-radius: 20px;
+    flex-direction: column;
+
+    &-left,
+    &-right {
+      width: 100%;
+
+      > * {
+        flex: 1;
+      }
+    }
+  }
+}

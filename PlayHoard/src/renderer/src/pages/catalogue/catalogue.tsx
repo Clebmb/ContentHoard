@@ -1,0 +1,724 @@
+import type {
+  CatalogueSearchPayload,
+  CatalogueSearchResult,
+  DownloadSource,
+  Steam250Game,
+} from "@types";
+
+import { useAppDispatch, useAppSelector, useFormat } from "@renderer/hooks";
+import {
+  lazy,
+  Suspense,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+
+import "./catalogue.scss";
+
+import { Button } from "@renderer/components/button/button";
+import { SelectField } from "@renderer/components/select-field/select-field";
+import { setFilters, setPage } from "@renderer/features";
+import { useCatalogue } from "@renderer/hooks/use-catalogue";
+import { debounce } from "lodash-es";
+import { useTranslation } from "react-i18next";
+import Skeleton, { SkeletonTheme } from "react-loading-skeleton";
+import { FilterItem } from "./filter-item";
+import { FilterSection } from "./filter-section";
+import { GameItem } from "./game-item";
+import { Pagination } from "./pagination";
+import { useNavigate } from "react-router-dom";
+import { buildGameDetailsPath } from "@renderer/helpers";
+
+const ProtonCompatibilitySection = lazy(async () => {
+  const mod = await import("./proton-compatibility-section");
+  return { default: mod.ProtonCompatibilitySection };
+});
+
+const ReleaseYearSection = lazy(async () => {
+  const mod = await import("./release-year-section");
+  return { default: mod.ReleaseYearSection };
+});
+
+const MIN_RELEASE_YEAR = 1970;
+
+type CompatibilityThreshold<Value extends string> = {
+  value: string;
+  labelKey: string;
+  values: Value[];
+  color?: string;
+};
+
+const filterCategoryColors = {
+  genres: "hsl(262deg 50% 47%)",
+  tags: "hsl(95deg 50% 20%)",
+  downloadSourceFingerprints: "hsl(27deg 50% 40%)",
+  developers: "hsl(340deg 50% 46%)",
+  publishers: "hsl(200deg 50% 30%)",
+  protondbSupportBadges: "#F50057",
+  deckCompatibility: "#F50057",
+  releaseYear: "hsl(38deg 50% 40%)",
+};
+
+const PAGE_SIZE = 30;
+
+const clearAllCategoryFilters = {
+  genres: [],
+  tags: [],
+  downloadSourceFingerprints: [],
+  developers: [],
+  publishers: [],
+  protondbSupportBadges: [],
+  deckCompatibility: [],
+  releaseYear: undefined,
+};
+
+const sortValues = [
+  "popularity:desc",
+  "releaseDate:desc",
+  "releaseDate:asc",
+  "alphabetical:asc",
+  "alphabetical:desc",
+  "hydraScore:desc",
+  "hydraScore:asc",
+] as const;
+
+type CatalogueSortValue = (typeof sortValues)[number];
+
+const protonCompatibilityThresholds: CompatibilityThreshold<
+  CatalogueSearchPayload["protondbSupportBadges"][number]
+>[] = [
+  {
+    value: "silver_plus",
+    labelKey: "protondb_silver_plus",
+    values: ["silver", "gold", "platinum"],
+    color: "rgb(166, 166, 166)",
+  },
+  {
+    value: "gold_plus",
+    labelKey: "protondb_gold_plus",
+    values: ["gold", "platinum"],
+    color: "rgb(207, 181, 59)",
+  },
+  {
+    value: "platinum_only",
+    labelKey: "protondb_platinum_only",
+    values: ["platinum"],
+    color: "rgb(180, 199, 220)",
+  },
+];
+
+const areSameValues = (first: string[], second: string[]) =>
+  first.length === second.length &&
+  first.every((item) => second.includes(item));
+
+export default function Catalogue() {
+  const navigate = useNavigate();
+  const requestSequenceRef = useRef(0);
+  const hasResultsRef = useRef(false);
+  const cataloguePageRef = useRef<HTMLDivElement>(null);
+
+  const { steamDevelopers, steamPublishers, downloadSources } = useCatalogue();
+
+  const { steamGenres, steamUserTags, filters, page } = useAppSelector(
+    (state) => state.catalogueSearch
+  );
+  const deferredTitleFilter = useDeferredValue(filters.title);
+
+  const effectiveFilters = useMemo(() => {
+    return {
+      ...filters,
+      title: deferredTitleFilter,
+    };
+  }, [filters, deferredTitleFilter]);
+
+  const [isLoading, setIsLoading] = useState(true);
+  const [isFetching, setIsFetching] = useState(false);
+
+  const [results, setResults] = useState<CatalogueSearchResult[]>([]);
+
+  const [itemsCount, setItemsCount] = useState(0);
+  const [randomGame, setRandomGame] = useState<Steam250Game | null>(null);
+
+  const { formatNumber } = useFormat();
+
+  const dispatch = useAppDispatch();
+
+  const { t, i18n } = useTranslation("catalogue");
+  const shouldShowProtonFeatures = window.electron.platform === "linux";
+
+  const debouncedSearch = useRef(
+    debounce(
+      async (
+        filters: CatalogueSearchPayload,
+        downloadSources: DownloadSource[],
+        pageSize: number,
+        offset: number,
+        requestId: number
+      ) => {
+        const requestData = {
+          ...filters,
+          take: pageSize,
+          skip: offset,
+          downloadSourceIds: downloadSources.map(
+            (downloadSource) => downloadSource.id
+          ),
+        };
+
+        try {
+          const response = await window.electron.hydraApi.post<{
+            edges: CatalogueSearchResult[];
+            count: number;
+          }>("/catalogue/search", {
+            data: requestData,
+            needsAuth: false,
+          });
+
+          if (requestId !== requestSequenceRef.current) return;
+
+          setResults(response.edges);
+          setItemsCount(response.count);
+          setIsLoading(false);
+        } finally {
+          if (requestId === requestSequenceRef.current) {
+            setIsFetching(false);
+          }
+        }
+      },
+      500
+    )
+  ).current;
+
+  const decodeHTML = (s: string) =>
+    s.replaceAll("&amp;", "&").replaceAll("&lt;", "<").replaceAll("&gt;", ">");
+
+  useEffect(() => {
+    hasResultsRef.current = results.length > 0;
+  }, [results.length]);
+
+  useEffect(() => {
+    window.electron.getRandomGame().then((game) => {
+      if (game) setRandomGame(game);
+    });
+  }, []);
+
+  useEffect(() => {
+    const requestId = ++requestSequenceRef.current;
+    setIsFetching(true);
+
+    if (!hasResultsRef.current) {
+      setIsLoading(true);
+    }
+
+    debouncedSearch(
+      effectiveFilters,
+      downloadSources,
+      PAGE_SIZE,
+      (page - 1) * PAGE_SIZE,
+      requestId
+    );
+
+    return () => {
+      debouncedSearch.cancel();
+    };
+  }, [effectiveFilters, downloadSources, page, debouncedSearch]);
+
+  const language = i18n.language.split("-")[0];
+
+  const steamGenresMapping = useMemo<Record<string, string>>(() => {
+    if (!steamGenres[language]) return {};
+
+    return steamGenres[language].reduce((prev, genre, index) => {
+      prev[genre] = steamGenres["en"][index];
+      return prev;
+    }, {});
+  }, [steamGenres, language]);
+
+  const steamGenresFilterItems = useMemo(() => {
+    return Object.entries(steamGenresMapping)
+      .sort(([keyA], [keyB]) => keyA.localeCompare(keyB))
+      .map(([key, value]) => ({
+        label: key,
+        value: value,
+        checked: filters.genres.includes(value),
+      }));
+  }, [steamGenresMapping, filters.genres]);
+
+  const steamUserTagsFilterItems = useMemo(() => {
+    if (!steamUserTags[language]) return [];
+
+    return Object.entries(steamUserTags[language])
+      .sort(([keyA], [keyB]) => keyA.localeCompare(keyB))
+      .map(([key, value]) => ({
+        label: key,
+        value: value,
+        checked: filters.tags.includes(value),
+      }));
+  }, [steamUserTags, filters.tags, language]);
+
+  const groupedFilters = useMemo(() => {
+    const protonThreshold = protonCompatibilityThresholds.find((threshold) =>
+      areSameValues(threshold.values, filters.protondbSupportBadges)
+    );
+    const deckCompatible = areSameValues(filters.deckCompatibility, [
+      "playable",
+      "verified",
+    ]);
+
+    return [
+      ...filters.genres.map((genre) => ({
+        label: Object.keys(steamGenresMapping).find(
+          (key) => steamGenresMapping[key] === genre
+        ) as string,
+        filterType: t("genres"),
+        orbColor: filterCategoryColors.genres,
+        key: "genres",
+        value: genre,
+      })),
+
+      ...filters.tags.map((tag) => ({
+        label: Object.keys(steamUserTags[language]).find(
+          (key) => steamUserTags[language][key] === tag
+        ),
+        filterType: t("tags"),
+        orbColor: filterCategoryColors.tags,
+        key: "tags",
+        value: tag,
+      })),
+
+      ...filters.downloadSourceFingerprints.map((fingerprint) => ({
+        label: downloadSources.find(
+          (source) => source.fingerprint === fingerprint
+        )?.name as string,
+        filterType: t("download_sources"),
+        orbColor: filterCategoryColors.downloadSourceFingerprints,
+        key: "downloadSourceFingerprints",
+        value: fingerprint,
+      })),
+
+      ...filters.developers.map((developer) => ({
+        label: developer,
+        filterType: t("developers"),
+        orbColor: filterCategoryColors.developers,
+        key: "developers",
+        value: developer,
+      })),
+
+      ...filters.publishers.map((publisher) => ({
+        label: decodeHTML(publisher),
+        filterType: t("publishers"),
+        orbColor: filterCategoryColors.publishers,
+        key: "publishers",
+        value: publisher,
+      })),
+
+      ...(shouldShowProtonFeatures &&
+      protonThreshold &&
+      protonThreshold.values.length
+        ? [
+            {
+              label: t(protonThreshold.labelKey),
+              filterType: t("protondb"),
+              orbColor: filterCategoryColors.protondbSupportBadges,
+              key: "protondbSupportBadges",
+              value: "threshold",
+            },
+          ]
+        : []),
+
+      ...(shouldShowProtonFeatures && deckCompatible
+        ? [
+            {
+              label: t("steam_deck_compatible"),
+              filterType: t("steam_deck_minimum"),
+              orbColor: filterCategoryColors.deckCompatibility,
+              key: "deckCompatibility",
+              value: "threshold",
+            },
+          ]
+        : []),
+
+      ...(filters.releaseYear
+        ? [
+            {
+              label: `${filters.releaseYear.gte ?? MIN_RELEASE_YEAR} – ${filters.releaseYear.lte ?? new Date().getFullYear()}`,
+              filterType: t("release_year"),
+              orbColor: filterCategoryColors.releaseYear,
+              key: "releaseYear",
+              value: "range",
+            },
+          ]
+        : []),
+    ];
+  }, [
+    filters,
+    steamUserTags,
+    downloadSources,
+    steamGenresMapping,
+    language,
+    shouldShowProtonFeatures,
+    t,
+  ]);
+
+  const filterSections = useMemo(() => {
+    return [
+      {
+        title: t("genres"),
+        items: steamGenresFilterItems,
+        key: "genres",
+      },
+      {
+        title: t("tags"),
+        items: steamUserTagsFilterItems,
+        key: "tags",
+      },
+      {
+        title: t("download_sources"),
+        items: downloadSources
+          .filter((source) => source.fingerprint)
+          .map((source) => ({
+            label: source.name,
+            value: source.fingerprint!,
+            checked: filters.downloadSourceFingerprints.includes(
+              source.fingerprint!
+            ),
+          })),
+        key: "downloadSourceFingerprints",
+      },
+      {
+        title: t("developers"),
+        items: steamDevelopers.map((developer) => ({
+          label: developer,
+          value: developer,
+          checked: filters.developers.includes(developer),
+        })),
+        key: "developers",
+      },
+      {
+        title: t("publishers"),
+        items: steamPublishers.map((publisher) => ({
+          label: decodeHTML(publisher),
+          value: publisher,
+          checked: filters.publishers.includes(publisher),
+        })),
+        key: "publishers",
+      },
+    ];
+  }, [
+    downloadSources,
+    filters.developers,
+    filters.downloadSourceFingerprints,
+    filters.publishers,
+    steamDevelopers,
+    steamGenresFilterItems,
+    steamPublishers,
+    steamUserTagsFilterItems,
+    t,
+  ]);
+
+  const selectedFiltersCount = groupedFilters.length;
+
+  const sortOptions = useMemo(
+    () => [
+      {
+        key: "popularity:desc",
+        value: "popularity:desc",
+        label: t("sort_popularity"),
+      },
+      {
+        key: "releaseDate:desc",
+        value: "releaseDate:desc",
+        label: t("sort_newest"),
+      },
+      {
+        key: "releaseDate:asc",
+        value: "releaseDate:asc",
+        label: t("sort_oldest"),
+      },
+      {
+        key: "alphabetical:asc",
+        value: "alphabetical:asc",
+        label: t("sort_title_asc"),
+      },
+      {
+        key: "alphabetical:desc",
+        value: "alphabetical:desc",
+        label: t("sort_title_desc"),
+      },
+      {
+        key: "hydraScore:desc",
+        value: "hydraScore:desc",
+        label: t("sort_highest_rating"),
+      },
+      {
+        key: "hydraScore:asc",
+        value: "hydraScore:asc",
+        label: t("sort_lowest_rating"),
+      },
+    ],
+    [t]
+  );
+
+  const selectedSortValue = `${filters.sortBy}:${filters.sortOrder}`;
+
+  const handleSurpriseClick = () => {
+    if (!randomGame) return;
+
+    navigate(
+      buildGameDetailsPath(
+        { ...randomGame, shop: "steam" },
+        {
+          fromRandomizer: "1",
+        }
+      )
+    );
+  };
+
+  const protonThresholdValue =
+    protonCompatibilityThresholds.find((threshold) =>
+      areSameValues(threshold.values, filters.protondbSupportBadges)
+    )?.value ?? "";
+  const isDeckCompatible = areSameValues(filters.deckCompatibility, [
+    "playable",
+    "verified",
+  ]);
+
+  return (
+    <div className="catalogue" ref={cataloguePageRef}>
+      <div className="catalogue__header">
+        <div className="catalogue__header-row">
+          <div className="catalogue__header-summary">
+            <span className="catalogue__result-count">
+              {t("result_count", {
+                resultCount: formatNumber(itemsCount),
+              })}
+            </span>
+            {selectedFiltersCount === 0 && (
+              <span className="catalogue__filters-hint">
+                {t("filters_sidebar_hint")}
+              </span>
+            )}
+          </div>
+
+          <div className="catalogue__sort-inline">
+            <span className="catalogue__sort-label">{t("sort_by")}</span>
+            <SelectField
+              theme="dark"
+              className="catalogue__sort-select"
+              value={
+                sortValues.includes(selectedSortValue as CatalogueSortValue)
+                  ? selectedSortValue
+                  : "popularity:desc"
+              }
+              options={sortOptions}
+              onChange={(event) => {
+                const [sortBy, sortOrder] = event.target.value.split(":") as [
+                  CatalogueSearchPayload["sortBy"],
+                  CatalogueSearchPayload["sortOrder"],
+                ];
+
+                dispatch(setFilters({ sortBy, sortOrder }));
+              }}
+            />
+          </div>
+        </div>
+
+        <div className="catalogue__header-row catalogue__header-row--filters">
+          {selectedFiltersCount > 0 ? (
+            <>
+              <span className="catalogue__active-filters-label">
+                {t("active_filters")}
+              </span>
+
+              <div className="catalogue__filters-wrapper">
+                <ul className="catalogue__filters-list">
+                  {groupedFilters.map((filter) => (
+                    <li key={`${filter.key}-${filter.value}`}>
+                      <FilterItem
+                        filter={filter.label ?? ""}
+                        filterType={filter.filterType}
+                        orbColor={filter.orbColor}
+                        onRemove={() => {
+                          if (filter.value === "range") {
+                            dispatch(setFilters({ releaseYear: undefined }));
+                            return;
+                          }
+
+                          if (filter.value === "threshold") {
+                            dispatch(setFilters({ [filter.key]: [] }));
+                            return;
+                          }
+
+                          dispatch(
+                            setFilters({
+                              [filter.key]: filters[filter.key].filter(
+                                (item) => item !== filter.value
+                              ),
+                            })
+                          );
+                        }}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </>
+          ) : (
+            <span className="catalogue__filters-wrapper" />
+          )}
+
+          <div className="catalogue__header-actions">
+            <Button
+              type="button"
+              theme="outline"
+              className="catalogue__surprise-button"
+              onClick={handleSurpriseClick}
+              disabled={!randomGame}
+            >
+              <span className="material-symbols-outlined">auto_awesome</span>
+              {t("surprise_me", { ns: "home" })}
+            </Button>
+
+            {selectedFiltersCount > 0 && (
+            <Button
+              type="button"
+              theme="outline"
+              className="catalogue__clear-all-button"
+              onClick={() => dispatch(setFilters(clearAllCategoryFilters))}
+            >
+              {t("clear_filters", {
+                filterCount: formatNumber(selectedFiltersCount),
+              })}
+            </Button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="catalogue__content">
+        <div className="catalogue__games-container">
+          {isLoading ? (
+            <SkeletonTheme baseColor="#1c1c1c" highlightColor="#444">
+              {Array.from({ length: PAGE_SIZE }).map((_, i) => (
+                <Skeleton key={i} className="catalogue__skeleton" />
+              ))}
+            </SkeletonTheme>
+          ) : (
+            results.map((game) => <GameItem key={game.id} game={game} />)
+          )}
+
+          {isFetching && !isLoading && (
+            <span className="catalogue__result-count">{t("loading")}</span>
+          )}
+
+          <div className="catalogue__pagination-container">
+            <Pagination
+              page={page}
+              totalPages={Math.ceil(itemsCount / PAGE_SIZE)}
+              onPageChange={(page) => {
+                dispatch(setPage(page));
+                if (cataloguePageRef.current) {
+                  cataloguePageRef.current.scrollTop = 0;
+                }
+              }}
+            />
+          </div>
+        </div>
+
+        <div className="catalogue__filters-container">
+          <div className="catalogue__filters-sections">
+            {shouldShowProtonFeatures && (
+              <Suspense fallback={null}>
+                <ProtonCompatibilitySection
+                  title={t("protondb")}
+                  protonSliderLabel={t("protondb_minimum")}
+                  deckSliderLabel={t("steam_deck_minimum")}
+                  protonOptions={protonCompatibilityThresholds.map(
+                    (threshold) => ({
+                      value: threshold.value,
+                      label: t(threshold.labelKey),
+                      color: threshold.color,
+                    })
+                  )}
+                  protonValue={protonThresholdValue}
+                  deckChecked={isDeckCompatible}
+                  deckLabel={t("steam_deck_compatible")}
+                  color={filterCategoryColors.protondbSupportBadges}
+                  onProtonChange={(value) => {
+                    const nextThreshold = protonCompatibilityThresholds.find(
+                      (threshold) => threshold.value === value
+                    );
+
+                    dispatch(
+                      setFilters({
+                        protondbSupportBadges: nextThreshold
+                          ? [...nextThreshold.values]
+                          : [],
+                      })
+                    );
+                  }}
+                  onDeckChange={(checked) => {
+                    dispatch(
+                      setFilters({
+                        deckCompatibility: checked
+                          ? ["playable", "verified"]
+                          : [],
+                      })
+                    );
+                  }}
+                />
+              </Suspense>
+            )}
+
+            <Suspense fallback={null}>
+              <ReleaseYearSection
+                title={t("release_year")}
+                color={filterCategoryColors.releaseYear}
+                value={filters.releaseYear}
+                onChange={(value) =>
+                  dispatch(setFilters({ releaseYear: value }))
+                }
+              />
+            </Suspense>
+
+            {filterSections.map((section) => (
+              <FilterSection
+                key={section.key}
+                title={section.title}
+                onClear={() => dispatch(setFilters({ [section.key]: [] }))}
+                color={filterCategoryColors[section.key]}
+                onSelect={(value) => {
+                  if (filters[section.key].includes(value)) {
+                    dispatch(
+                      setFilters({
+                        [section.key]: filters[
+                          section.key as
+                            | "genres"
+                            | "tags"
+                            | "downloadSourceFingerprints"
+                            | "developers"
+                            | "publishers"
+                            | "protondbSupportBadges"
+                            | "deckCompatibility"
+                        ].filter((item) => item !== value),
+                      })
+                    );
+                  } else {
+                    dispatch(
+                      setFilters({
+                        [section.key]: [...filters[section.key], value],
+                      })
+                    );
+                  }
+                }}
+                items={section.items}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,64 @@
+# ─── Dependencies ───────────────────────────────────────────────────────
+node_modules/
+.pnp/
+.pnp.*
+
+# ─── Build Outputs ──────────────────────────────────────────────────────
+out/
+release/
+releases/
+dist/
+*.AppImage
+*.dmg
+*.deb
+*.rpm
+*.snap
+*.exe
+*.msi
+*.blockmap
+latest*.yml
+
+# ─── Vite / TypeScript / Test Caches ────────────────────────────────────
+.vite/
+*.tsbuildinfo
+coverage/
+.eslintcache
+
+# ─── Logs ───────────────────────────────────────────────────────────────
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ─── Environment ────────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+*.pem
+
+# ─── OS ─────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ─── Editor ─────────────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ─── Local user data ────────────────────────────────────────────────────
+Crashpad/
+Dictionaries/
+GPUCache/
+Local Storage/
+Session Storage/
+IndexedDB/
+Code Cache/
+blob_storage/
+Network Persistent State
+Preferences
+SingletonCookie
+SingletonLock
+SingletonSocket

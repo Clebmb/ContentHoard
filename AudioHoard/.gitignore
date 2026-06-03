@@ -1,0 +1,154 @@
+# ─── Dependencies ───────────────────────────────────────────────────────
+node_modules/
+.pnp/
+.pnp.*
+
+# ─── Build Outputs ──────────────────────────────────────────────────────
+dist/
+out/
+release/
+releases/
+build/
+build-dir/
+builddir/
+repo/
+*.AppImage
+*.snap
+*.deb
+*.rpm
+*.dmg
+*.pkg
+*.exe
+*.msi
+*.blockmap
+latest*.yml
+
+# ─── Bundled External Binaries ──────────────────────────────────────────
+bin/
+
+# ─── Runtime Caches & Temp Files ────────────────────────────────────────
+tmp/
+temp/
+.tmp/
+.cache/
+.parcel-cache/
+.eslintcache
+.stylelintcache
+.vite/
+coverage/
+*.tsbuildinfo
+
+# ─── Logs ───────────────────────────────────────────────────────────────
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+electron-builder-debug.yml
+electron-builder.env
+
+# ─── Environment & Secrets ──────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+*cookies*.txt
+yt-dlp-youtube-cookies.txt
+FIRESTORE_RULES_2_0.rules
+
+# ─── OS & Editor ────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+*.swp
+*.swo
+*~
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.example.json
+
+# ─── Local Notes & Scratch Files ────────────────────────────────────────
+copilot-instructions.md
+update_locales.py
+test-theme.css
+ref2/
+ref4/
+
+# ─── Custom Theme Imports ───────────────────────────────────────────────
+themes/
+
+# ─── Plugins (installed at runtime) ─────────────────────────────────────
+plugins/*/
+!plugins/soundcloud-source/
+!plugins/spotify-metadata/
+!plugins/registry.json
+
+# ─── Electron / Chromium Local User Data ────────────────────────────────
+Crashpad/
+Dictionaries/
+GPUCache/
+Local Storage/
+Session Storage/
+IndexedDB/
+Code Cache/
+blob_storage/
+Network Persistent State
+Preferences
+SingletonCookie
+SingletonLock
+SingletonSocket
+
+# ─── Android Build Artifacts ────────────────────────────────────────────
+android/.gradle/
+android/build/
+android/app/build/
+android/app/release/
+android/app/debug/
+android/app/outputs/
+android/.idea/
+android/local.properties
+android/captures/
+android/**/.cxx/
+android/**/generated/
+android/**/intermediates/
+android/**/outputs/
+android/**/tmp/
+android/**/*.apk
+android/**/*.aab
+
+# ─── iOS Build Artifacts ────────────────────────────────────────────────
+ios/build/
+ios/DerivedData/
+ios/Pods/
+ios/.xcode.env.local
+ios/**/*.xcuserstate
+ios/**/*.xcworkspace/xcuserdata/
+ios/**/*.xcodeproj/xcuserdata/
+
+# ─── Flatpak Local Build ────────────────────────────────────────────────
+.flatpak-builder/
+flatpak/build/
+flatpak/repo/
+flatpak/.flatpak-builder/
+
+# ─── Python Helper Caches ───────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# ─── Archives & Backups ─────────────────────────────────────────────────
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.7z
+*.bak
+*.backup

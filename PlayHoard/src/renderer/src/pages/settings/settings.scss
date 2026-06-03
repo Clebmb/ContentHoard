@@ -1,0 +1,116 @@
+@use "../../scss/globals.scss";
+
+.settings {
+  &__container {
+    padding: 24px;
+    width: 100%;
+    display: flex;
+  }
+
+  &__content {
+    background: rgba(255, 255, 255, 0.04);
+    width: 100%;
+    height: 100%;
+    border: solid 1px rgba(255, 255, 255, 0.1);
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.42);
+    border-radius: 24px;
+    display: flex;
+    overflow: hidden;
+    backdrop-filter: blur(24px);
+  }
+
+  &__sidebar {
+    width: max-content;
+    min-width: 220px;
+    max-width: 320px;
+    display: flex;
+    flex-direction: column;
+    gap: globals.$spacing-unit;
+    padding: calc(globals.$spacing-unit * 2) calc(globals.$spacing-unit * 1.75);
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(0, 0, 0, 0.22);
+  }
+
+  &__sidebar-button {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: globals.$spacing-unit;
+    border: 0;
+    background: transparent;
+    color: globals.$muted-color;
+    text-align: left;
+    padding: calc(globals.$spacing-unit * 1.25)
+      calc(globals.$spacing-unit * 1.5);
+    border-radius: 999px;
+    cursor: pointer;
+    font-size: globals.$body-font-size;
+    line-height: 1.2;
+    white-space: nowrap;
+    transition:
+      color 0.2s ease,
+      background-color 0.1s ease;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: #fff;
+    }
+
+    &--active {
+      background: #fff;
+      color: globals.$dark-background-color;
+      font-weight: 800;
+    }
+
+    &-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0.9;
+    }
+  }
+
+  &__panel {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: calc(globals.$spacing-unit * 2.5);
+    min-width: 0;
+    padding: calc(globals.$spacing-unit * 2.5);
+    overflow: auto;
+  }
+
+  @media (max-width: 860px) {
+    &__content {
+      flex-direction: column;
+    }
+
+    &__sidebar {
+      width: 100%;
+      min-width: 0;
+      padding: calc(globals.$spacing-unit * 1.5) calc(globals.$spacing-unit * 2)
+        globals.$spacing-unit;
+      border-right: none;
+      border-bottom: 1px solid globals.$border-color;
+      flex-direction: row;
+      flex-wrap: wrap;
+    }
+
+    &__panel {
+      padding-top: globals.$spacing-unit;
+    }
+  }
+}
+
+.settings-context-panel {
+  display: flex;
+  flex-direction: column;
+  gap: calc(globals.$spacing-unit * 2);
+
+  &__group {
+    display: flex;
+    flex-direction: column;
+    gap: calc(globals.$spacing-unit * 1.5);
+    padding-top: calc(globals.$spacing-unit * 1.5);
+  }
+}

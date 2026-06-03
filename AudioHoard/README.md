@@ -1,0 +1,112 @@
+<p align="center">
+<img width="160" height="160" alt="AudioHoard logo" src="assets/logo.png" />
+</p>
+
+<p align="center">
+A desktop music player built with Electron that streams audio from YouTube Music. Clean UI, no accounts, no ads.
+
+</p>
+<p align="center">
+<a href="https://discord.gg/JHDZraE5TD"><img src="https://img.shields.io/badge/Discord-Join%20Server-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord" /></a>
+</p>
+
+> [!WARNING]
+> The app is still constantly being worked on and may contain a few bugs or experimental features, use at your own discretion.
+
+> [!IMPORTANT]
+> **Cloud Sync will stop working on any version prior to 2.0.** Please update to v2.0 or later to continue using Cloud Sync.
+
+## Features
+
+- **Search** — Find songs, artists, and albums via YouTube Music
+- **Playback** — Stream audio directly with play/pause, seek, skip, volume
+- **Queue** — View and manage upcoming tracks, drag reorder
+- **Smart Queue** — Auto-fills with similar songs when the queue runs out
+- **Shuffle & Repeat** — Shuffle queue, repeat one or all
+- **Playlists** — Create, rename, delete, and add/remove tracks. Custom or auto-generated covers. Drag & drop songs into sidebar playlists
+- **Liked Songs** — Heart any track to save it
+- **Synced Lyrics** — Spotify-like synced lyrics from multi-source
+- **Artist Pages** — Top songs, discography, monthly audience, fans also like, and live performances
+- **Follow Artists** — Follow artists and see their recent releases on the home page
+- **Music Videos** — Watch music videos in-app
+- **Discord Rich Presence** — Show what you're listening to on Discord
+- **Cloud Sync** — Sign in with email to sync your library across devices
+- **Themes** — Built-in color themes
+- **Keyboard Shortcuts** — Full keyboard control (see below)
+
+## Screenshots
+
+| | |
+|---|---|
+| ![Home](assets/screenshots/home.png) | ![Artist](assets/screenshots/artist.png) |
+| ![Lyrics](assets/screenshots/lyrics.png) | ![Playlist](assets/screenshots/playlist.png) |
+| ![Explore](assets/screenshots/explore.png) | ![Discord RPC](assets/screenshots/discord-rpc.png) |
+
+## Getting Started
+
+You'll need [Node.js](https://nodejs.org/) (v18+) and [yt-dlp](https://github.com/yt-dlp/yt-dlp) installed on your system.
+
+```bash
+# Clone the repo
+git clone https://github.com/nyakuoff/AudioHoard.git
+cd AudioHoard
+
+# Install dependencies
+npm install
+
+# Run
+npm start
+```
+
+### Requirements
+
+| Dependency | Purpose |
+|---|---|
+| [Electron](https://www.electronjs.org/) | Desktop app shell |
+| [ytmusic-api](https://github.com/sigmundgranaas/ytmusic-api) | YouTube Music search, artist & album data |
+| [yt-dlp](https://github.com/yt-dlp/yt-dlp) | Extracts audio stream URLs (must be in PATH) |
+| [synclyrics](https://github.com/Stef-00012/SyncLyrics) | Synced lyrics from Musixmatch, LrcLib, Netease |
+| [Firebase](https://firebase.google.com/) | Authentication & cloud sync |
+
+## Keyboard Shortcuts
+
+| Key | Action |
+|---|---|
+| `Space` | Play / Pause |
+| `←` / `→` | Seek backward / forward 5s |
+| `Ctrl+←` / `Ctrl+→` | Previous / Next track |
+| `↑` / `↓` | Volume up / down |
+| `/` | Focus search |
+
+## Tech Stack
+
+- **Electron** — Desktop framework
+- **ytmusic-api** — YouTube Music metadata
+- **yt-dlp** — Audio stream extraction
+- **synclyrics** — Synced lyrics (Musixmatch, LrcLib, Netease)
+- **Firebase** — Auth & Firestore cloud sync
+- **Discord RPC** — Rich presence integration
+
+## Roadmap
+
+- [x] Outdated
+
+## Legal
+
+This app is for **personal and educational use only**. It streams content from publicly available sources. I am not responsible for how anyone chooses to use it.
+
+## Supporting AudioHoard
+
+AudioHoard is growing super fast, and so are the costs to keep it running. If you love using AudioHoard and want to help it keep thriving, please consider supporting the project:
+
+- **[💝 Donate](https://audiohoard.cc/donate)** — All donations will be used to maintain AudioHoard
+- **[⭐ Star this repo](https://github.com/nyakuoff/AudioHoard)** — It really helps!
+
+Every contribution keeps AudioHoard ad-free and fully open source. Thank you for being part of the community!
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on reporting bugs, suggesting features, submitting pull requests, and translating.
+
+> [!NOTE]
+> **AI Disclaimer**: Parts of this project were assisted or written by AI. If that's something you're not comfortable with, no hard feelings, I understand and I don't force anyone to use it. The code may have flaws. If you spot something that could be better, contributions are very welcome. I'm still learning and would appreciate the help.

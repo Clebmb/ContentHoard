@@ -1,0 +1,108 @@
+# ─── Dependencies ───────────────────────────────────────────────────────
+node_modules/
+**/node_modules/
+.pnp/
+.pnp.*
+
+# ─── Environment & Local Secrets ────────────────────────────────────────
+.env
+.env.*
+!.env.example
+*.local
+*.pem
+*.key
+*.crt
+.npmrc.local
+
+# ─── Build Outputs & Packaged Apps ──────────────────────────────────────
+dist/
+out/
+release/
+releases/
+artifacts/
+app/
+*.asar
+*.AppImage
+*.dmg
+*.exe
+*.msi
+*.deb
+*.rpm
+*.snap
+*.tar.gz
+*.zip
+
+# ─── Vite, Electron, TypeScript & Test Caches ───────────────────────────
+.vite/
+.vitest/
+.turbo/
+.parcel-cache/
+.cache/
+coverage/
+*.tsbuildinfo
+*.log
+*.log.*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+storybook-static/
+*storybook.log
+
+# ─── Native & Generated Build Artifacts ─────────────────────────────────
+native/hydra-native/target/
+native/**/target/
+hydra-native/
+target/
+*.node
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dylib
+*.dll
+
+# ─── Python Artifacts & Virtual Environments ────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+env/
+python_rpc/build/
+python_rpc/dist/
+python_rpc/*.egg-info/
+
+# ─── Local External Tools & Runtime Data ────────────────────────────────
+ludusavi/**
+!ludusavi/config.yaml
+binaries/**/*.tmp
+binaries/**/*.log
+
+# ─── Scratch / Reference Files ──────────────────────────────────────────
+ref/
+ref2/
+ref4/
+Future-updates.md
+TO-DO.md
+.planning/
+.claude/
+
+# ─── Editor, OS & Workspace Files ───────────────────────────────────────
+.DS_Store
+Thumbs.db
+Desktop.ini
+.vscode/
+.idea/
+*.swp
+*.swo
+*.tmp
+*.temp
+.python-version
+
+# ─── Sentry ─────────────────────────────────────────────────────────────
+.env.sentry-build-plugin
