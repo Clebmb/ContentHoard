@@ -27,6 +27,7 @@ export type HoardApp = {
   path: string;
   windowCommand: string;
   windowArgs: string[];
+  installed: boolean;
 };
 
 export type Profile = {

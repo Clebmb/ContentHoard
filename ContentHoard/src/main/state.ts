@@ -78,6 +78,8 @@ export type ContentHoardState = {
   profiles: Profile[];
   theme: ThemeSettings;
   savedThemes: SavedTheme[];
+  /** Which side last changed shared state: "contenthoard" (default) or "child". */
+  lastStateUpdateSource?: string;
 };
 
 const defaultProfile: Profile = {
@@ -156,7 +158,7 @@ const store = new Store<ContentHoardState>({ name: "contenthoard-state" }) as St
 export const sharedStatePath = process.env.CONTENTHOARD_SHARED_STATE_PATH ||
   path.join(os.homedir(), ".contenthoard", "shared-state.json");
 
-function readSharedState(): Partial<ContentHoardState> {
+export function readSharedState(): Partial<ContentHoardState> {
   try {
     const raw = fs.readFileSync(sharedStatePath, "utf8");
     const parsed = JSON.parse(raw) as Partial<ContentHoardState>;
@@ -169,6 +171,87 @@ function readSharedState(): Partial<ContentHoardState> {
 function writeSharedState(state: ContentHoardState) {
   fs.mkdirSync(path.dirname(sharedStatePath), { recursive: true });
   fs.writeFileSync(sharedStatePath, JSON.stringify(state, null, 2), "utf8");
+}
+
+/**
+ * Ingests profile writes coming from child apps (AudioHoard/MediaHoard/PlayHoard).
+ * Returns the partial patch to persist, or null when nothing should change.
+ *
+ * Semantics: ContentHoard remains the owner of existing profiles, but profiles
+ * created by children (unknown ids, or ids reported as "deleted by child") are
+ * adopted or removed accordingly. `lastStateUpdateSource` records the origin so
+ * the shared-state watcher can distinguish child writes from our own.
+ */
+export function ingestChildSync(payload: unknown): {
+  patch: Partial<ContentHoardState>;
+  shouldPersist: boolean;
+} | null {
+  if (!payload || typeof payload !== "object") return null;
+  const data = payload as Record<string, unknown>;
+  const profiles = Array.isArray(data.profiles) ? (data.profiles as Profile[]) : undefined;
+  if (!profiles) return null;
+
+  // Diff against the last ContentHoard-authored state in the persistent store —
+  // NOT loadState(), which re-reads the shared file and would already contain
+  // the child's write, making every diff a no-op.
+  const stored = store.store as Partial<ContentHoardState>;
+  const baseProfiles: Profile[] =
+    Array.isArray(stored.profiles) && stored.profiles.length ? stored.profiles : defaultState.profiles;
+  const baseActiveId = baseProfiles.some((profile) => profile.id === stored.activeProfileId)
+    ? String(stored.activeProfileId)
+    : baseProfiles[0].id;
+
+  const childActiveId = data.activeProfileId ? String(data.activeProfileId) : "";
+  const deletedIds = Array.isArray(data.deletedProfileIds)
+    ? (data.deletedProfileIds as unknown[]).map(String)
+    : [];
+
+  // Start from the last known state; apply child updates only for profiles the child knows about.
+  const merged: Profile[] = baseProfiles.filter(
+    (profile) => !deletedIds.includes(String(profile.id))
+  );
+  for (const profile of profiles) {
+    const id = String(profile.id);
+    if (!profile || typeof profile !== "object" || !id) continue;
+    const existingIndex = merged.findIndex((p) => String(p.id) === id);
+    const normalized: Profile = {
+      id,
+      name: String(profile.name || (existingIndex >= 0 ? merged[existingIndex].name : "Profile")),
+      icon: String(profile.icon || (existingIndex >= 0 ? merged[existingIndex].icon : "person")),
+      color: String(profile.color || (existingIndex >= 0 ? merged[existingIndex].color : "#39E079")),
+      createdAt: Number(profile.createdAt || (existingIndex >= 0 ? merged[existingIndex].createdAt : Date.now()))
+    };
+    if (existingIndex >= 0) {
+      merged[existingIndex] = normalized;
+    } else {
+      merged.push(normalized);
+    }
+  }
+
+  if (!merged.length) return null; // never allow an empty profile list
+
+  const profileIds = new Set(merged.map((profile) => String(profile.id)));
+  const activeProfileId =
+    childActiveId && profileIds.has(childActiveId)
+      ? childActiveId
+      : profileIds.has(baseActiveId)
+        ? baseActiveId
+        : merged[0].id;
+
+  const profilesChanged =
+    JSON.stringify(baseProfiles.map((p) => [p.id, p.name, p.icon, p.color, p.createdAt])) !==
+    JSON.stringify(merged.map((p) => [p.id, p.name, p.icon, p.color, p.createdAt]));
+  const activeChanged = activeProfileId !== baseActiveId;
+  if (!profilesChanged && !activeChanged) return null;
+
+  return {
+    patch: {
+      profiles: merged,
+      activeProfileId,
+      lastStateUpdateSource: "child"
+    },
+    shouldPersist: true
+  };
 }
 
 export function loadState(): ContentHoardState {
@@ -200,7 +283,10 @@ export function saveState(nextState: ContentHoardState): ContentHoardState {
       ...defaultTheme,
       ...(nextState.theme ?? {})
     },
-    savedThemes: Array.isArray(nextState.savedThemes) ? nextState.savedThemes : []
+    savedThemes: Array.isArray(nextState.savedThemes) ? nextState.savedThemes : [],
+    // Writes going through this function are ContentHoard-authored. The child
+    // stamp only ever lives in the raw file that child apps write directly.
+    lastStateUpdateSource: "contenthoard"
   };
   store.set(normalized);
   writeSharedState(normalized);

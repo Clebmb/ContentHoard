@@ -392,7 +392,7 @@ export class WindowManager {
     this.notificationWindow.setAlwaysOnTop(true, "screen-saver", 1);
     this.loadWindowURL(this.notificationWindow, "achievement-notification");
 
-    if (!app.isPackaged || isStaging) {
+    if (shouldOpenDevTools()) {
       this.notificationWindow.webContents.openDevTools();
     }
   }
@@ -550,7 +550,7 @@ export class WindowManager {
       this.gameLauncherWindow = null;
     });
 
-    if (!app.isPackaged || isStaging) {
+    if (shouldOpenDevTools()) {
       this.gameLauncherWindow.webContents.openDevTools();
     }
   }

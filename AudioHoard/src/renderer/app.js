@@ -417,6 +417,9 @@ setTimeout(scheduleAutoMarqueeRefresh, 250);
       // independently once launched. Theme and savedThemes still sync live.
       if (shared.profiles && Array.isArray(shared.profiles)) {
         // Cache profile data for reference
+        const previousActiveId = (() => {
+          try { return localStorage.getItem('audiohoard-contenthoard-cached-activeProfileId') || ''; } catch { return ''; }
+        })();
         try {
           localStorage.setItem('audiohoard-contenthoard-cached-profiles', JSON.stringify(shared.profiles));
           if (shared.activeProfileId) {
@@ -424,35 +427,75 @@ setTimeout(scheduleAutoMarqueeRefresh, 250);
           }
         } catch { /* ignore */ }
 
-        // Sync deletions: if a profile that originated from ContentHoard
-        // is no longer in ContentHoard's list, remove it locally.
         let changed = false;
+        let pendingSwitchId = null;
         try {
-          const trackedIds = JSON.parse(localStorage.getItem('audiohoard-contenthoard-profile-ids') || '[]');
-          if (Array.isArray(trackedIds) && trackedIds.length) {
-            const chIds = new Set(shared.profiles.map(function(p) { return String(p.id); }));
-            const toRemove = state.profiles.filter(function(p) {
-              return trackedIds.includes(String(p.id)) && !chIds.has(String(p.id));
+          let trackedIds = JSON.parse(localStorage.getItem('audiohoard-contenthoard-profile-ids') || '[]');
+          if (!Array.isArray(trackedIds)) trackedIds = [];
+          const chIds = new Set(shared.profiles.map(function(p) { return String(p.id); }));
+
+          // Sync deletions: if a profile that originated from ContentHoard
+          // is no longer in ContentHoard's list, remove it locally.
+          const toRemove = trackedIds.filter(function(id) { return !chIds.has(id); });
+          if (toRemove.length) {
+            toRemove.forEach(function(id) {
+              state.profiles = state.profiles.filter(function(lp) { return lp.id !== id; });
+              if (state.profileData) delete state.profileData[id];
             });
-            if (toRemove.length) {
-              toRemove.forEach(function(p) {
-                state.profiles = state.profiles.filter(function(lp) { return lp.id !== p.id; });
-                if (state.profileData) delete state.profileData[p.id];
-                if (state.activeProfileId === p.id) {
-                  state.activeProfileId = state.profiles[0]?.id || null;
-                }
+            if (toRemove.includes(state.activeProfileId)) {
+              state.activeProfileId = state.profiles[0]?.id || null;
+            }
+            trackedIds = trackedIds.filter(function(id) { return chIds.has(id); });
+            changed = true;
+          }
+
+          // Live upsert: mirror the full ContentHoard profile list so profiles
+          // created in any Hoard app (via ContentHoard) reach this one too.
+          shared.profiles.forEach(function(p) {
+            const id = String(p.id);
+            if (!id) return;
+            const local = state.profiles.find(function(lp) { return lp.id === id; });
+            if (local) {
+              const name = String(p.name || local.name);
+              const icon = String(p.icon || local.icon);
+              const color = String(p.color || local.color);
+              if (local.name !== name || local.icon !== icon || local.color !== color) {
+                local.name = name;
+                local.icon = icon;
+                local.color = color;
+                changed = true;
+              }
+            } else {
+              state.profiles.push({
+                id: id,
+                name: String(p.name || 'ContentHoard'),
+                icon: String(p.icon || 'person'),
+                color: String(p.color || '#39E079'),
+                createdAt: Number(p.createdAt || Date.now()),
               });
               changed = true;
-              // Update tracked IDs to reflect deletions
-              const remainingChIds = trackedIds.filter(function(id) { return !toRemove.some(function(p) { return String(p.id) === id; }); });
-              localStorage.setItem('audiohoard-contenthoard-profile-ids', JSON.stringify(remainingChIds));
             }
+            if (!trackedIds.includes(id)) trackedIds.push(id);
+          });
+          localStorage.setItem('audiohoard-contenthoard-profile-ids', JSON.stringify(trackedIds));
+
+          // Follow ContentHoard's active profile when it changes (skip the
+          // very first event so first contact never hijacks the local app).
+          const nextActiveId = String(shared.activeProfileId || '');
+          if (nextActiveId && previousActiveId && nextActiveId !== previousActiveId &&
+              state.profiles.some(function(lp) { return lp.id === nextActiveId; })) {
+            pendingSwitchId = nextActiveId;
           }
         } catch { /* ignore */ }
 
         if (changed) {
           _flushSaveState();
           if (typeof window.__renderProfiles === 'function') window.__renderProfiles();
+        }
+        // Defer the switch until this handler finishes so theme/savedThemes
+        // below still apply before the reload triggered by switchProfile.
+        if (pendingSwitchId && typeof window.__switchProfile === 'function') {
+          setTimeout(function() { window.__switchProfile(pendingSwitchId); }, 50);
         }
       }
       if (shared.theme && typeof shared.theme === 'object') {

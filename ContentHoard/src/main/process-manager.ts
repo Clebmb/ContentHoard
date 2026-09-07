@@ -1,5 +1,5 @@
 import { spawn, type ChildProcess } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, writeFileSync, writeSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { BrowserWindow, shell } from "electron";
@@ -31,6 +31,13 @@ const pidsFilePath = path.join(
     ? path.dirname(process.env.CONTENTHOARD_SHARED_STATE_PATH)
     : path.join(os.homedir(), ".contenthoard"),
   "running-pids.json"
+);
+
+const logsDirPath = path.join(
+  process.env.CONTENTHOARD_SHARED_STATE_PATH
+    ? path.dirname(process.env.CONTENTHOARD_SHARED_STATE_PATH)
+    : path.join(os.homedir(), ".contenthoard"),
+  "logs"
 );
 
 type PersistedPid = { pid: number; startedAt: number };
@@ -93,17 +100,39 @@ export function launchApp(appId: string) {
 
   const command = app.windowCommand;
   const args = app.windowArgs;
-  const child = spawn(command, args, {
-    cwd: app.path,
-    env: {
-      ...process.env,
-      ...buildLaunchEnvironment(appId)
-    },
-    stdio: "ignore",
-    shell: false,
-    detached: process.platform !== "win32",
-    windowsHide: false
-  });
+
+  // Route child output to a per-app log file instead of discarding it, so
+  // instant crashes are diagnosable (~/.contenthoard/logs/<appId>.log).
+  mkdirSync(logsDirPath, { recursive: true });
+  const logPath = path.join(logsDirPath, `${appId}.log`);
+  const logFd = openSync(logPath, "a");
+  writeSync(logFd, `\n===== ${new Date().toISOString()} — launch: ${command} ${args.join(" ")} =====\n`);
+
+  // Node >= 18.20/20.12 (CVE-2024-27980) refuses to spawn .cmd/.bat files without a shell,
+  // so Windows .cmd shims (npm.cmd, corepack.cmd) must go through cmd.exe.
+  const needsShell = process.platform === "win32" && /\.(cmd|bat)$/i.test(command);
+  let child: ChildProcess;
+  try {
+    child = spawn(command, args, {
+      cwd: app.path,
+      env: {
+        ...process.env,
+        COREPACK_ENABLE_DOWNLOAD_PROMPT: "0",
+        ...buildLaunchEnvironment(appId)
+      },
+      stdio: ["ignore", logFd, logFd],
+      shell: needsShell,
+      detached: process.platform !== "win32",
+      windowsHide: false
+    });
+  } catch (err) {
+    closeSync(logFd);
+    appendFileSync(logPath, `===== spawn failed: ${(err as Error).stack ?? err} =====\n`);
+    statuses.set(appId, { running: false, pid: null, startedAt: null, lastExitCode: null });
+    broadcastStatuses();
+    throw err;
+  }
+  closeSync(logFd);
 
   processes.set(appId, child);
   statuses.set(appId, {
@@ -117,7 +146,12 @@ export function launchApp(appId: string) {
   persisted[appId] = { pid: child.pid ?? 0, startedAt: Date.now() };
   writePersistedPids(persisted);
 
-  child.once("exit", (code) => {
+  child.once("exit", (code, signal) => {
+    try {
+      appendFileSync(logPath, `\n===== ${new Date().toISOString()} — exited code=${code} signal=${signal} =====\n`);
+    } catch {
+      /* best effort */
+    }
     processes.delete(appId);
     statuses.set(appId, {
       running: false,

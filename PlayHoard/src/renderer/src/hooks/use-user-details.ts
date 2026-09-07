@@ -12,6 +12,7 @@ import {
   resolveImageUrl,
 } from "@renderer/helpers";
 import { levelDBService } from "@renderer/services/leveldb.service";
+import { logger } from "@renderer/logger";
 import type {
   UpdateProfileRequest,
   UserDetails,
@@ -225,10 +226,34 @@ const getStoredLocalProfiles = (): UserDetails[] => {
   return [profile];
 };
 
-const syncContentHoardProfiles = async (_profiles: UserDetails[], _activeProfile: UserDetails) => {
-  // Child apps manage profiles independently once launched.
-  // Profile changes in this app should NOT affect ContentHoard.
-  return;
+const syncContentHoardProfiles = async (
+  profiles: UserDetails[],
+  activeProfile: UserDetails | null,
+  deletedProfileIds: string[] = []
+) => {
+  // Publish PlayHoard's profile list to ContentHoard's shared state.
+  // ContentHoard stays the owner of profiles it created; profiles created
+  // or deleted here are adopted/removed there via ingestChildSync.
+  const bridge = window.electron?.contentHoard;
+  if (!bridge?.enabled || typeof bridge.writeSharedState !== "function") return;
+  try {
+    const shared = (await bridge.readSharedState?.()) ?? {};
+    await bridge.writeSharedState({
+      ...shared,
+      profiles: profiles.map((profile) => ({
+        id: String(profile.id),
+        name: String(profile.displayName || "Profile"),
+        icon: "person",
+        color: String(profile.profileColor || "#39E079"),
+        createdAt: Number((profile as unknown as { createdAt?: number }).createdAt || Date.now()),
+      })),
+      activeProfileId: activeProfile ? String(activeProfile.id) : undefined,
+      deletedProfileIds,
+      lastStateUpdateSource: "child",
+    });
+  } catch (error) {
+    logger.error("[PlayHoard] ContentHoard profile sync failed:", error);
+  }
 };
 
 const getActiveProfileId = () =>
@@ -408,10 +433,12 @@ export function useUserDetails() {
       if (profiles.length <= 1) return null;
 
       const nextProfiles = profiles.filter((profile) => profile.id !== profileId);
+      if (nextProfiles.length === profiles.length) return null; // nothing deleted
       persistProfiles(nextProfiles);
       void syncContentHoardProfiles(
         nextProfiles,
-        nextProfiles.find((profile) => profile.id === getActiveProfileId()) ?? nextProfiles[0]
+        nextProfiles.find((profile) => profile.id === getActiveProfileId()) ?? nextProfiles[0],
+        [profileId]
       );
       globalThis.window.localStorage.removeItem(
         getProfileLibraryStorageKey(profileId)

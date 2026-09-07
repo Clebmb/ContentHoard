@@ -295,6 +295,17 @@ button:disabled {
   gap: 10px;
 }
 
+.app-command-row button[disabled] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.app-missing-hint {
+  font-size: 12px;
+  color: var(--theme-nav-text-unselected);
+  align-self: center;
+}
+
 .app-command-row button,
 .section-heading button,
 .profile-row > button,

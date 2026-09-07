@@ -75,18 +75,40 @@ function iconHtml(profile, className = '') {
   return `<span class="material-symbols-outlined ${className}" aria-hidden="true">${escapeHtml(icon || (profile ? 'person' : 'account_circle'))}</span>`;
 }
 
-function saveProfiles({ reload = false } = {}) {
+function saveProfiles({ deletedId = null, reload = false } = {}) {
   callbacks.saveState();
   window.__snowifySaveState?.();
-  syncContentHoardProfiles();
+  syncContentHoardProfiles(deletedId ? [deletedId] : []);
   renderProfiles();
   if (reload) setTimeout(() => window.location.reload(), 80);
 }
 
-async function syncContentHoardProfiles() {
-  // Child apps manage profiles independently once launched.
-  // Profile changes in this app should NOT affect ContentHoard.
-  return;
+async function syncContentHoardProfiles(deletedProfileIds) {
+  // Publish AudioHoard's profile list to ContentHoard's shared state.
+  // ContentHoard stays the owner of profiles it created; profiles created
+  // or deleted here are adopted/removed there via ingestChildSync.
+  const bridge = window.snowify?.contentHoard;
+  if (!bridge?.enabled || typeof bridge.writeSharedState !== 'function') return;
+  try {
+    const shared = (await bridge.readSharedState?.()) || {};
+    await bridge.writeSharedState({
+      ...shared,
+      profiles: state.profiles.map(function (p) {
+        return {
+          id: String(p.id),
+          name: String(p.name || 'Profile'),
+          icon: String(p.icon || 'person'),
+          color: String(p.color || '#39E079'),
+          createdAt: Number(p.createdAt || Date.now()),
+        };
+      }),
+      activeProfileId: state.activeProfileId ? String(state.activeProfileId) : shared.activeProfileId,
+      deletedProfileIds: Array.isArray(deletedProfileIds) ? deletedProfileIds.map(String) : [],
+      lastStateUpdateSource: 'child',
+    });
+  } catch (e) {
+    console.warn('ContentHoard profile sync failed:', e);
+  }
 }
 
 function createProfile(name, icon = '', color = DEFAULT_COLOR) {
@@ -120,18 +142,21 @@ function switchProfile(id) {
   applyActiveProfileData();
   callbacks.saveState();
   window.__snowifySaveState?.();
+  syncContentHoardProfiles([]);
   window.location.reload();
 }
 
 function deleteProfile(id) {
   const wasActive = state.activeProfileId === id;
-  state.profiles = state.profiles.filter(p => p.id !== id);
+  const remaining = state.profiles.filter(p => p.id !== id);
+  if (remaining.length === state.profiles.length) return; // nothing deleted
+  state.profiles = remaining;
   if (state.profileData) delete state.profileData[id];
   if (wasActive) {
     state.activeProfileId = state.profiles[0]?.id || null;
     applyActiveProfileData();
   }
-  saveProfiles({ reload: wasActive });
+  saveProfiles({ deletedId: id, reload: wasActive });
   showToast(t('profiles.deleted'));
 }
 
@@ -452,5 +477,6 @@ export function initProfiles() {
   renderProfiles();
   // Expose for ContentHoard shared state deletion sync
   window.__renderProfiles = renderProfiles;
+  window.__switchProfile = switchProfile;
   if (!state.profiles.length) setTimeout(openOnboarding, 80);
 }

@@ -3,7 +3,7 @@ import updater from "electron-updater";
 import i18n from "i18next";
 import path from "node:path";
 import url from "node:url";
-import { electronApp, optimizer } from "@electron-toolkit/utils";
+import { optimizer } from "@electron-toolkit/utils";
 import {
   logger,
   clearGamesPlaytime,
@@ -21,6 +21,14 @@ import { loadState } from "./main";
 const { autoUpdater } = updater;
 
 app.setName("PlayHoard");
+
+// Windows taskbar identity. Must be set directly on `app` — NOT via
+// @electron-toolkit/utils, whose setAppUserModelId replaces the given id with
+// process.execPath in dev mode (ContentHoard's electron.exe), making
+// PlayHoard's taskbar button bundle with ContentHoard's.
+if (process.platform === "win32") {
+  app.setAppUserModelId("app.playhoard.desktop");
+}
 
 autoUpdater.setFeedURL({
   provider: "github",
@@ -95,8 +103,6 @@ for (const protocol of APP_PROTOCOLS) {
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(async () => {
-  electronApp.setAppUserModelId("app.playhoard.desktop");
-
   protocol.handle("local", (request) => {
     const filePath = request.url.slice("local:".length);
     return net.fetch(url.pathToFileURL(decodeLocalFilePath(filePath)).toString());

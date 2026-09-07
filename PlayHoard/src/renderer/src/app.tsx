@@ -45,6 +45,47 @@ import type { PlayhoardThemeSettings } from "./helpers";
 import { levelDBService } from "./services/leveldb.service";
 
 const CONTENTHOARD_PROFILE_IDS_KEY = "playhoard-contenthoard-profile-ids";
+const CONTENTHOARD_CACHED_ACTIVE_KEY = "playhoard-contenthoard-cached-activeProfileId";
+
+const usernameFromDisplayName = (displayName?: string) => {
+  const username = displayName
+    ?.trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  return username || "player";
+};
+
+type ContentHoardSharedProfile = {
+  id: string;
+  name?: string;
+  icon?: string;
+  color?: string;
+  createdAt?: number;
+};
+
+const contentHoardProfileToStoredProfile = (
+  shared: ContentHoardSharedProfile
+): Record<string, unknown> => {
+  const displayName = String(shared.name || "ContentHoard");
+  return {
+    id: String(shared.id),
+    username: usernameFromDisplayName(displayName),
+    email: null,
+    displayName,
+    profileImageUrl: null,
+    backgroundImageUrl: null,
+    profileColor: String(shared.color || "#FFFFFF"),
+    profileIcon: String(shared.icon || "person"),
+    profileVisibility: "PUBLIC",
+    bio: "",
+    workwondersJwt: "",
+    subscription: null,
+    karma: 0,
+    quirks: { backupsPerGameLimit: 0 },
+  };
+};
 
 export interface AppProps {
   children: React.ReactNode;
@@ -74,7 +115,15 @@ export function App() {
     hasActiveSubscription,
     fetchUserDetails,
     updateUserDetails,
+    switchProfile,
   } = useUserDetails();
+
+  // Keep a live reference so the ContentHoard shared-state handler always
+  // calls the latest profile switcher without re-subscribing listeners.
+  const switchProfileRef = useRef(switchProfile);
+  useEffect(() => {
+    switchProfileRef.current = switchProfile;
+  }, [switchProfile]);
 
   const { hideHydraCloudModal, isHydraCloudModalVisible, hydraCloudFeature } =
     useSubscription();
@@ -262,10 +311,11 @@ export function App() {
 
     setupWorkWonders(userDetails?.workwondersJwt, userPreferences?.language);
 
-    if (!document.getElementById("external-resources")) {
+    const externalResourcesUrl = import.meta.env.RENDERER_VITE_EXTERNAL_RESOURCES_URL;
+    if (externalResourcesUrl && !document.getElementById("external-resources")) {
       const $script = document.createElement("script");
       $script.id = "external-resources";
-      $script.src = `${import.meta.env.RENDERER_VITE_EXTERNAL_RESOURCES_URL}/bundle.js?t=${Date.now()}`;
+      $script.src = `${externalResourcesUrl}/bundle.js?t=${Date.now()}`;
       document.head.appendChild($script);
     }
   }, [fetchUserDetails, updateUserDetails, dispatch, setupWorkWonders]);
@@ -294,55 +344,137 @@ export function App() {
 
   const debounceSharedState = useCallback((shared: unknown) => {
     const s = shared as Record<string, unknown>;
-    console.debug("[contenthoard] debounceSharedState received:", s);
-    if (s.profiles && Array.isArray(s.profiles)) {
-      localStorage.setItem("playhoard-contenthoard-cached-profiles", JSON.stringify(s.profiles));
-      if (s.activeProfileId) {
-        localStorage.setItem("playhoard-contenthoard-cached-activeProfileId", String(s.activeProfileId));
-        // Profile sync from ContentHoard is intentionally only at launch time
-        // (via env vars), not during runtime. Child apps manage profiles
-        // independently once launched. Theme and savedThemes still sync live.
+    console.debug("[contenthoard] debounceSharedState received:", s);    if (s.profiles && Array.isArray(s.profiles)) {
+      const sharedProfiles = s.profiles as ContentHoardSharedProfile[];
+      const sharedActiveId = s.activeProfileId ? String(s.activeProfileId) : "";
+      const previousActiveId =
+        localStorage.getItem(CONTENTHOARD_CACHED_ACTIVE_KEY) || "";
+      localStorage.setItem(
+        "playhoard-contenthoard-cached-profiles",
+        JSON.stringify(s.profiles)
+      );
+      if (sharedActiveId) {
+        localStorage.setItem(CONTENTHOARD_CACHED_ACTIVE_KEY, sharedActiveId);
       }
 
-      // Sync deletions: if a profile that originated from ContentHoard
-      // is no longer in ContentHoard's list, remove it locally.
+      const chIds = new Set(sharedProfiles.map((p) => String(p.id)));
+      let trackedIds: string[] = [];
       const trackedIdsStr = localStorage.getItem(CONTENTHOARD_PROFILE_IDS_KEY);
       if (trackedIdsStr) {
         try {
-          const trackedIds = JSON.parse(trackedIdsStr) as string[];
-          if (Array.isArray(trackedIds) && trackedIds.length) {
-            const chIds = new Set(s.profiles.map((p: Record<string, unknown>) => String(p.id)));
-            const toRemove = trackedIds.filter((id) => !chIds.has(id));
-            if (toRemove.length) {
-              // Remove deleted profiles from stored profiles list
-              const profilesStr = localStorage.getItem("playhoardProfiles");
-              if (profilesStr) {
-                try {
-                  const profiles = JSON.parse(profilesStr) as Array<Record<string, unknown>>;
-                  const filtered = profiles.filter((p) => !toRemove.includes(String(p.id)));
-                  if (filtered.length !== profiles.length) {
-                    localStorage.setItem("playhoardProfiles", JSON.stringify(filtered));
-                    // If the active profile was deleted, reset to first available
-                    const activeId = localStorage.getItem("playhoardActiveProfileId");
-                    if (activeId && toRemove.includes(activeId)) {
-                      const nextId = filtered[0]?.id || null;
-                      if (nextId) {
-                        localStorage.setItem("playhoardActiveProfileId", String(nextId));
-                      } else {
-                        localStorage.removeItem("playhoardActiveProfileId");
-                      }
-                    }
-                    // Update tracked IDs
-                    const remainingChIds = trackedIds.filter((id) => !toRemove.includes(id));
-                    localStorage.setItem(CONTENTHOARD_PROFILE_IDS_KEY, JSON.stringify(remainingChIds));
-                    // Notify the UI to refresh
-                    window.dispatchEvent(new CustomEvent(PLAYHOARD_CONTENTHOARD_STATE_UPDATED_EVENT));
-                  }
-                } catch { /* ignore parse error */ }
+          const parsed = JSON.parse(trackedIdsStr) as string[];
+          if (Array.isArray(parsed)) trackedIds = parsed.map(String);
+        } catch {
+          /* ignore parse error */
+        }
+      }
+
+      const profilesStr = localStorage.getItem("playhoardProfiles");
+      if (profilesStr) {
+        try {
+          const profiles = JSON.parse(profilesStr) as Array<
+            Record<string, unknown>
+          >;
+          let mutated = false;
+
+          // Sync deletions: if a profile that originated from ContentHoard
+          // is no longer in ContentHoard's list, remove it locally.
+          const toRemove = trackedIds.filter((id) => !chIds.has(id));
+          if (toRemove.length) {
+            const filtered = profiles.filter(
+              (p) => !toRemove.includes(String(p.id))
+            );
+            if (filtered.length !== profiles.length) {
+              profiles.length = 0;
+              profiles.push(...filtered);
+              mutated = true;
+              // If the active profile was deleted, reset to first available
+              const activeId = localStorage.getItem("playhoardActiveProfileId");
+              if (activeId && toRemove.includes(activeId)) {
+                const nextId = filtered[0]?.id || null;
+                if (nextId) {
+                  localStorage.setItem("playhoardActiveProfileId", String(nextId));
+                } else {
+                  localStorage.removeItem("playhoardActiveProfileId");
+                }
               }
             }
+            trackedIds = trackedIds.filter((id) => chIds.has(id));
           }
-        } catch { /* ignore parse error */ }
+
+          // Live upsert: mirror the full ContentHoard profile list so profiles
+          // created in any Hoard app (via ContentHoard) reach this one too.
+          for (const sharedProfile of sharedProfiles) {
+            const id = String(sharedProfile.id);
+            if (!id) continue;
+            const index = profiles.findIndex((p) => String(p.id) === id);
+            if (index >= 0) {
+              const local = profiles[index];
+              const displayName = String(
+                sharedProfile.name || local.displayName || "ContentHoard"
+              );
+              const profileColor = String(
+                sharedProfile.color || local.profileColor || "#FFFFFF"
+              );
+              const profileIcon = String(
+                sharedProfile.icon || local.profileIcon || "person"
+              );
+              if (
+                local.displayName !== displayName ||
+                local.profileColor !== profileColor ||
+                local.profileIcon !== profileIcon
+              ) {
+                profiles[index] = {
+                  ...local,
+                  displayName,
+                  username: usernameFromDisplayName(displayName),
+                  profileColor,
+                  profileIcon,
+                };
+                mutated = true;
+              }
+            } else {
+              profiles.push(contentHoardProfileToStoredProfile(sharedProfile));
+              mutated = true;
+            }
+            if (!trackedIds.includes(id)) trackedIds.push(id);
+          }
+
+          if (mutated) {
+            localStorage.setItem("playhoardProfiles", JSON.stringify(profiles));
+            // Notify the UI to refresh
+            window.dispatchEvent(
+              new CustomEvent(PLAYHOARD_CONTENTHOARD_STATE_UPDATED_EVENT)
+            );
+          }
+        } catch {
+          /* ignore parse error */
+        }
+      }
+      if (trackedIds.length) {
+        localStorage.setItem(CONTENTHOARD_PROFILE_IDS_KEY, JSON.stringify(trackedIds));
+      }
+
+      // Follow ContentHoard's active profile when it changes. Skip the very
+      // first event so first contact never hijacks the locally active profile.
+      if (
+        sharedActiveId &&
+        previousActiveId &&
+        sharedActiveId !== previousActiveId
+      ) {
+        let known = false;
+        try {
+          const stored = JSON.parse(
+            localStorage.getItem("playhoardProfiles") || "[]"
+          ) as Array<Record<string, unknown>>;
+          known = stored.some((p) => String(p.id) === sharedActiveId);
+        } catch {
+          /* ignore parse error */
+        }
+        const activeId = localStorage.getItem("playhoardActiveProfileId");
+        if (known && activeId !== sharedActiveId) {
+          void switchProfileRef.current?.(sharedActiveId)?.catch?.(() => undefined);
+        }
       }
     }
     if (s.theme && typeof s.theme === "object") {

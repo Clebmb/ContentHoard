@@ -246,8 +246,13 @@ function App() {
   };
 
   const launchApp = async (appId: string) => {
-    const result = await window.contenthoard.launchApp(appId);
-    setStatuses((current) => ({ ...current, [appId]: result.status }));
+    try {
+      const result = await window.contenthoard.launchApp(appId);
+      setStatuses((current) => ({ ...current, [appId]: result.status }));
+    } catch (error) {
+      console.error(`Failed to launch ${appId}:`, error);
+      setStatuses((current) => ({ ...current, [appId]: { ...(current[appId] ?? { running: false, pid: null, startedAt: null }), running: false } }));
+    }
   };
 
   const openProfileEditor = (target?: Profile) => {
@@ -373,9 +378,18 @@ function App() {
             <i className={statuses[activeApp.id]?.running ? "status on" : "status"} />
           </div>
           <div className="app-command-row">
-            <button className="primary" onClick={() => launchApp(activeApp.id)}><Power size={16} /> Launch</button>
+            <button className="primary" onClick={() => void launchApp(activeApp.id)} disabled={!activeApp.installed} title={activeApp.installed ? undefined : "App folder not found in this workspace"}>
+              <Power size={16} /> Launch
+            </button>
             <button onClick={() => window.contenthoard.revealApp(activeApp.id)}><FolderOpen size={16} /> Open Folder</button>
             {statuses[activeApp.id]?.running && <button onClick={() => window.contenthoard.stopApp(activeApp.id)}><Square size={14} /> Stop</button>}
+            {!activeApp.installed && <span className="app-missing-hint">App folder not found — place this app next to ContentHoard to enable launch.</span>}
+            {(() => {
+              const st = statuses[activeApp.id];
+              if (!activeApp.installed || st?.running) return null;
+              if (typeof st?.lastExitCode !== "number" || st.lastExitCode === 0) return null;
+              return <span className="app-missing-hint">Last run exited with code {st.lastExitCode} — see ~/.contenthoard/logs/{activeApp.id}.log</span>;
+            })()}
           </div>
         </section>
       ) : (

@@ -5,7 +5,7 @@ import { app, BrowserWindow, Menu, ipcMain } from "electron";
 import { is } from "@electron-toolkit/utils";
 import { hoardApps } from "./app-registry";
 import { getStatuses, launchApp, revealApp, stopApp, restoreStatuses } from "./process-manager";
-import { loadState, saveState, sharedStatePath, type ContentHoardState } from "./state";
+import { loadState, saveState, sharedStatePath, readSharedState, ingestChildSync, type ContentHoardState } from "./state";
 
 let mainWindow: BrowserWindow | null = null;
 const focusHost = "127.0.0.1";
@@ -116,7 +116,9 @@ if (!gotSingleInstanceLock) {
   });
 }
 
-ipcMain.handle("contenthoard:get-apps", () => hoardApps);
+ipcMain.handle("contenthoard:get-apps", () =>
+  hoardApps.map((app) => ({ ...app, installed: fs.existsSync(app.path) }))
+);
 ipcMain.handle("contenthoard:get-state", () => loadState());
 ipcMain.handle("contenthoard:save-state", (_event, state: ContentHoardState) => saveState(state));
 ipcMain.handle("contenthoard:get-statuses", () => getStatuses());
@@ -126,6 +128,7 @@ ipcMain.handle("contenthoard:reveal-app", (_event, appId: string) => revealApp(a
 
 function startSharedStateWatcher() {
   let lastMtime = 0;
+  let lastState: ContentHoardState | null = null;
   try {
     lastMtime = fs.statSync(sharedStatePath, { throwIfNoEntry: false })?.mtimeMs || 0;
   } catch {
@@ -138,7 +141,22 @@ function startSharedStateWatcher() {
       if (!stat) return;
       if (stat.mtimeMs > lastMtime) {
         lastMtime = stat.mtimeMs;
-        const state = loadState();
+        // Child apps (AudioHoard/MediaHoard/PlayHoard) stamp their writes with
+        // lastStateUpdateSource: "child". Ingest those into the persistent
+        // store so profiles created/edited/deleted in children are adopted,
+        // then broadcast the merged result to our renderer.
+        const raw = readSharedState();
+        const isChildWrite =
+          raw.lastStateUpdateSource === "child" ||
+          (!!raw.activeProfileId && !!lastState && raw.activeProfileId !== lastState.activeProfileId);
+        let state: ContentHoardState;
+        if (isChildWrite) {
+          const ingest = ingestChildSync(raw);
+          state = ingest ? saveState(ingest.patch as ContentHoardState) : loadState();
+        } else {
+          state = loadState();
+        }
+        lastState = state;
         for (const window of BrowserWindow.getAllWindows()) {
           if (!window.isDestroyed()) {
             window.webContents.send("contenthoard:state-updated", state);
